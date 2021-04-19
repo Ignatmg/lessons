@@ -1,0 +1,93 @@
+Parameters:
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: dev
+
+  EC2TYPE:
+    Description: EC2 types
+    Type: String
+    Default: t2.micro
+
+  EBSTypes:
+    Description: EBS Type
+    Type: String
+    Default: gp3
+
+  VpcId:
+    Description: VpcId
+    Type: String
+    Default: vpc-0a969e865af6cacb8
+
+  SubnetId:
+    Description: VpcId
+    Type: String
+    Default: subnet-058739afa176207d6
+
+Resources:
+  SSHSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 22
+          IpProtocol: tcp
+          ToPort: 22
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Enable HTTP access via user defined port
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref EC2TYPE
+#      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !GetAtt SSHSecurityGroup.GroupId
+        - !GetAtt WebSecurityGroup.GroupId
+#      SecurityGroups:
+#        - !Ref SSHSecurityGroup
+#        - !Ref WebSecurityGroup
+      ImageId: ami-0767046d1677be5a0 # Amazon Ubunutu 20 x64 Frankfurt
+      UserData:
+        'Fn::Base64':
+          !Sub |
+          #!/bin/bash
+          sudo apt-get -y update
+
+          # install apache
+          sudo apt-get install apache2 -y
+
+          # start server
+          sudo systemctl start apache2
+          sudo systemctl status apache2
+      Tags:
+        - Key: Name
+          Value:  !Sub '${EnvironmentName} - ${AWS::Region} !Ref  My EC2 Instance typ ${EC2TYPE}'
+        - Key: Type
+          Value: Server Instance
+
+  VolumeEC2:
+    Type: AWS::EC2::Volume
+    Properties:
+      Size: 8
+      AvailabilityZone: !GetAtt Ec2Instance.AvailabilityZone
+      Tags:
+        - Key: MyTag
+          Value: TagValue
+    DeletionPolicy: Snapshot
+
+  MountPoint:
+    Type: AWS::EC2::VolumeAttachment
+    Properties:
+      InstanceId: !Ref Ec2Instance
+      VolumeId: !Ref VolumeEC2
+      Device: /dev/sdh
